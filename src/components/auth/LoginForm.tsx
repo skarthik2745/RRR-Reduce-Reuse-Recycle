@@ -94,7 +94,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
               boxShadow: '0 0 20px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.4)'
             }}>
               <img 
-                src="./WhatsApp Image 2025-11-20 at 22.03.04_d3c7e71e.jpg" 
+                src="/logo1.jpg" 
                 alt="RRR Platform" 
                 className="w-full h-40 object-cover rounded-xl"
               />
