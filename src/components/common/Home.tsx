@@ -82,7 +82,7 @@ export const Home: React.FC = () => {
                 width: '700px'
               }}>
                 <img 
-                  src="./WhatsApp Image 2025-11-20 at 22.03.04_d3c7e71e.jpg" 
+                  src="/logo1.jpg" 
                   alt="RRR Platform" 
                   className="w-full h-72 object-cover rounded-2xl"
                   style={{
