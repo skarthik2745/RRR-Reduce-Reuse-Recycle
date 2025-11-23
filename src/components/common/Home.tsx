@@ -1,5 +1,6 @@
 import React from 'react';
 import { Leaf, RefreshCw, Recycle, Heart, Users, Award, ArrowRight, Target, Shield, Smartphone, TrendingUp, Calculator, MapPin, Building, Utensils } from 'lucide-react';
+import logo from './logo1.jpg';
 
 // Add keyframes for animations
 const style = document.createElement('style');
@@ -82,7 +83,7 @@ export const Home: React.FC = () => {
                 width: '700px'
               }}>
                 <img 
-                  src="/logo1.jpg" 
+                  src={logo} 
                   alt="RRR Platform" 
                   className="w-full h-72 object-cover rounded-2xl"
                   style={{

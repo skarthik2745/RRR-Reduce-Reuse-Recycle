@@ -3,6 +3,7 @@ import { User } from '../../types';
 import { useAuth } from './AuthContext';
 import { signIn, getUserProfile } from '../../lib/auth';
 import { Leaf, Recycle } from 'lucide-react';
+import logo from '../logo1.jpg';
 
 interface LoginFormProps {
   onToggleMode: () => void;
@@ -94,7 +95,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
               boxShadow: '0 0 20px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.4)'
             }}>
               <img 
-                src="/logo1.jpg" 
+                src={logo} 
                 alt="RRR Platform" 
                 className="w-full h-40 object-cover rounded-xl"
               />
