@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Edit, Trash2, Bell, X, Award, TrendingUp } from 'lucide-react';
+import { Calendar, MapPin, Edit, Trash2, Bell, X, Award, TrendingUp, Bot } from 'lucide-react';
 import { getFoodExpiryItems, createFoodExpiryItem, getAllFoodExpiryItems, updateFoodExpiryItem, deleteFoodExpiryItem } from '../../lib/database';
 import { getCurrentUser } from '../../lib/auth';
 
@@ -10,6 +10,233 @@ interface FoodItem {
   storageLocation: string;
   status: 'fresh' | 'expiring' | 'expired';
 }
+
+const AIWastePreventionTips: React.FC<{ expiredItems: FoodItem[], expiringItems: FoodItem[] }> = ({ expiredItems, expiringItems }) => {
+  const [tips, setTips] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const generateTips = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a food waste prevention specialist. Provide specific, actionable tips to prevent food waste based on the user\'s expired and expiring food patterns.'
+            },
+            {
+              role: 'user',
+              content: `Based on my food waste patterns, provide 6 specific prevention tips:
+              
+              EXPIRED ITEMS: ${expiredItems.map(item => `${item.name} (${item.storageLocation})`).join(', ')}
+              EXPIRING SOON: ${expiringItems.map(item => `${item.name} (${item.storageLocation})`).join(', ')}
+              
+              Give me 6 practical, specific tips to prevent these types of foods from expiring in the future. Focus on storage, timing, and consumption strategies.`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 300
+        })
+      });
+      
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || '';
+      
+      const tipsList = aiResponse.split('\n').filter(line => 
+        line.trim() && (line.includes('.') || line.includes('•') || line.includes('-'))
+      ).slice(0, 6);
+      
+      setTips(tipsList.length > 0 ? tipsList : [
+        'Buy smaller quantities when unsure about consumption',
+        'Store items in labeled containers with expiry dates visible',
+        'Organize fridge by expiry date — oldest items in front',
+        'Set phone reminders to check expiry dates weekly',
+        'Freeze perishables before they expire to extend shelf life',
+        'Use transparent containers to easily track food quantities'
+      ]);
+    } catch (error) {
+      setTips([
+        'Buy smaller quantities when unsure about consumption',
+        'Store items in labeled containers with expiry dates visible',
+        'Organize fridge by expiry date — oldest items in front',
+        'Set phone reminders to check expiry dates weekly',
+        'Freeze perishables before they expire to extend shelf life',
+        'Use transparent containers to easily track food quantities'
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    generateTips();
+  }, [expiredItems, expiringItems]);
+
+  return (
+    <div>
+      {loading ? (
+        <div className="text-center py-4">
+          <div className="animate-spin w-6 h-6 border-4 border-t-transparent rounded-full mx-auto mb-2" style={{ borderColor: '#e3b645' }}></div>
+          <p style={{ color: '#e7c97b' }}>Generating prevention tips...</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {tips.map((tip, index) => (
+            <div key={index} className="flex items-start gap-3">
+              <Bot size={16} className="mt-1 flex-shrink-0" style={{ color: '#28A745' }} />
+              <span className="text-sm" style={{ color: '#e7c97b' }}>
+                {tip.replace(/^\d+\.\s*/, '').replace(/^[•-]\s*/, '')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AIFoodWasteAnalysis: React.FC<{ foodItems: FoodItem[] }> = ({ foodItems }) => {
+  const [analysis, setAnalysis] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const generateAnalysis = async () => {
+    setLoading(true);
+    try {
+      const expiredItems = foodItems.filter(item => item.status === 'expired');
+      const expiringItems = foodItems.filter(item => item.status === 'expiring');
+      const freshItems = foodItems.filter(item => item.status === 'fresh');
+      
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a food waste prevention expert. Analyze expired food patterns and provide specific strategies to prevent food from expiring. Focus on storage methods, timing, and consumption habits that prevent waste.'
+            },
+            {
+              role: 'user',
+              content: `Analyze my expired food items and provide specific prevention strategies:
+              
+              EXPIRED FOOD ANALYSIS:
+              Total Expired Items: ${expiredItems.length}
+              Expired Foods: ${expiredItems.map(item => `${item.name} (stored in ${item.storageLocation}, expired on ${item.expiryDate})`).join(', ')}
+              
+              EXPIRING SOON (Risk Items): ${expiringItems.length}
+              At-Risk Foods: ${expiringItems.map(item => `${item.name} (expires ${item.expiryDate})`).join(', ')}
+              
+              STORAGE PATTERNS OF EXPIRED ITEMS:
+              ${expiredItems.reduce((acc, item) => {
+                acc[item.storageLocation] = (acc[item.storageLocation] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>)}
+              
+              Based on these specific expired items and storage patterns, provide 6 targeted strategies to prevent future food waste. Focus on why these particular items expired and how to avoid it.`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 500
+        })
+      });
+      
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || '';
+      
+      const recommendations = aiResponse.split('\n').filter(line => 
+        line.trim() && (line.includes('.') || line.includes('•') || line.includes('-'))
+      ).slice(0, 6);
+      
+      setAnalysis(recommendations);
+    } catch (error) {
+      console.error('AI Analysis Error:', error);
+      setAnalysis([
+        'Check expiry dates when buying - choose items with longer shelf life',
+        'Store perishables in optimal conditions (proper temperature/humidity)',
+        'Use transparent containers to easily see what needs to be consumed first',
+        'Plan meals around items that expire soonest',
+        'Set phone reminders 2-3 days before expiry dates',
+        'Learn proper storage techniques for different food types'
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (foodItems.length > 0) {
+      generateAnalysis();
+    }
+  }, [foodItems]);
+
+  return (
+    <div className="space-y-4">
+      {loading ? (
+        <div className="text-center py-6">
+          <div className="animate-spin w-8 h-8 border-4 border-t-transparent rounded-full mx-auto mb-4" style={{ borderColor: '#e3b645' }}></div>
+          <p style={{ color: '#e7c97b' }}>AI is analyzing your food inventory...</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="text-center p-4 rounded-xl" style={{ background: 'rgba(40, 167, 69, 0.1)' }}>
+              <div className="text-2xl font-bold" style={{ color: '#28A745' }}>{foodItems.filter(item => item.status === 'fresh').length}</div>
+              <div className="text-sm" style={{ color: '#e7c97b' }}>Fresh Items</div>
+            </div>
+            <div className="text-center p-4 rounded-xl" style={{ background: 'rgba(242, 201, 76, 0.1)' }}>
+              <div className="text-2xl font-bold" style={{ color: '#f2c94c' }}>{foodItems.filter(item => item.status === 'expiring').length}</div>
+              <div className="text-sm" style={{ color: '#e7c97b' }}>Expiring Soon</div>
+            </div>
+            <div className="text-center p-4 rounded-xl" style={{ background: 'rgba(235, 87, 87, 0.1)' }}>
+              <div className="text-2xl font-bold" style={{ color: '#eb5757' }}>{foodItems.filter(item => item.status === 'expired').length}</div>
+              <div className="text-sm" style={{ color: '#e7c97b' }}>Expired</div>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {analysis.map((recommendation, index) => (
+              <div key={index} className="flex items-start gap-3 p-3 rounded-lg" style={{
+                background: 'rgba(227, 182, 69, 0.1)',
+                border: '1px solid rgba(227, 182, 69, 0.3)'
+              }}>
+                <Bot size={16} className="mt-1 flex-shrink-0" style={{ color: '#e3b645' }} />
+                <p className="text-sm" style={{ color: '#e7c97b' }}>
+                  {recommendation.replace(/^\d+\.\s*/, '').replace(/^[•-]\s*/, '')}
+                </p>
+              </div>
+            ))}
+          </div>
+          
+          <div className="text-center mt-4">
+            <button
+              onClick={generateAnalysis}
+              disabled={loading}
+              className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 disabled:opacity-50"
+              style={{
+                background: 'linear-gradient(135deg, #B8860B, #DAA520)',
+                color: 'white',
+                border: '2px solid #e3b645'
+              }}
+            >
+              {loading ? 'Analyzing...' : 'Refresh Analysis'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export const FoodExpiryLogger: React.FC = () => {
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
@@ -503,6 +730,19 @@ export const FoodExpiryLogger: React.FC = () => {
         </div>
       </div>
 
+      {/* AI Food Waste Analysis */}
+      <div className="p-6 rounded-3xl border-2" style={{
+        background: '#11271d',
+        borderColor: '#e3b645',
+        boxShadow: '0 8px 32px rgba(227, 182, 69, 0.2)'
+      }}>
+        <div className="flex items-center gap-3 mb-6">
+          <TrendingUp size={24} style={{ color: '#e3b645' }} />
+          <h3 className="text-2xl font-bold" style={{ color: '#e3b645' }}>🤖 AI Food Waste Analysis</h3>
+        </div>
+        <AIFoodWasteAnalysis foodItems={foodItems} />
+      </div>
+
       {/* Expired Items & Tips Section */}
       <div className="grid md:grid-cols-2 gap-8">
         {/* Expired Items */}
@@ -532,27 +772,16 @@ export const FoodExpiryLogger: React.FC = () => {
           )}
         </div>
 
-        {/* Tips Section */}
+        {/* AI Waste Prevention Tips */}
         <div className="p-6 rounded-3xl" style={{
           background: '#11271d',
           border: '2px solid #e3b645'
         }}>
-          <h4 className="text-2xl font-bold mb-4" style={{ color: '#e3b645' }}>How to Avoid Waste Next Time</h4>
-          <div className="space-y-3">
-            {[
-              "Buy smaller quantities when unsure",
-              "Store items in labeled boxes",
-              "Organize fridge by expiry date — oldest in front",
-              "Use reminders to check expiry weekly",
-              "Freeze food to extend life",
-              "Use glass jars to track items better"
-            ].map((tip, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <span style={{ color: '#28A745' }}>•</span>
-                <span className="text-sm" style={{ color: '#e7c97b' }}>{tip}</span>
-              </div>
-            ))}
-          </div>
+          <h4 className="text-2xl font-bold mb-4 flex items-center gap-2" style={{ color: '#e3b645' }}>
+            <Bot size={20} />
+            🤖 AI Waste Prevention Tips
+          </h4>
+          <AIWastePreventionTips expiredItems={expiredItems} expiringItems={expiringItems} />
         </div>
       </div>
 

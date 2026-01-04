@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb, Zap, Droplets, Recycle, Leaf, Heart, RefreshCw } from 'lucide-react';
+import { Lightbulb, Zap, Droplets, Recycle, Leaf, Heart, RefreshCw, Bot, Send } from 'lucide-react';
 
 interface EcoTip {
   id: string;
@@ -9,6 +9,168 @@ interface EcoTip {
   icon: string;
   color: string;
 }
+
+const AIEcoTips: React.FC = () => {
+  const [aiTips, setAiTips] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [userQuery, setUserQuery] = useState('');
+
+  const generateAITips = async (query: string = '') => {
+    setLoading(true);
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert sustainability advisor. Provide practical, actionable eco-friendly tips that people can easily implement in their daily lives. Focus on specific, measurable actions with clear environmental benefits.'
+            },
+            {
+              role: 'user',
+              content: query ? 
+                `Provide 6 specific eco-friendly tips related to: ${query}. Make each tip actionable and include the environmental benefit.` :
+                'Provide 6 diverse, practical eco-friendly tips for daily sustainable living. Cover different areas like energy, water, waste, transport, and lifestyle. Make each tip specific and actionable.'
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 400
+        })
+      });
+      
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || '';
+      
+      // Parse AI response into individual tips
+      const tips = aiResponse.split('\n').filter(line => 
+        line.trim() && (line.match(/^\d+\./) || line.includes('•') || line.includes('-'))
+      ).slice(0, 6);
+      
+      setAiTips(tips.length > 0 ? tips : [
+        'Switch to LED bulbs to reduce energy consumption by 75%',
+        'Use a reusable water bottle to prevent 1,460 plastic bottles per year',
+        'Take 5-minute showers to save 25 gallons of water daily',
+        'Walk or bike for trips under 2 miles to reduce carbon emissions',
+        'Compost food scraps to reduce methane emissions from landfills',
+        'Unplug electronics when not in use to eliminate phantom energy draw'
+      ]);
+    } catch (error) {
+      console.error('AI Tips Error:', error);
+      setAiTips([
+        'Switch to renewable energy sources when possible',
+        'Reduce single-use plastic consumption',
+        'Use public transportation or carpool',
+        'Start composting organic waste',
+        'Choose locally sourced products',
+        'Implement water-saving techniques at home'
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    generateAITips(userQuery);
+  };
+
+  useEffect(() => {
+    generateAITips();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* Query Input */}
+      <form onSubmit={handleSubmit} className="flex gap-3">
+        <input
+          type="text"
+          value={userQuery}
+          onChange={(e) => setUserQuery(e.target.value)}
+          placeholder="Ask for specific eco tips (e.g., 'energy saving', 'water conservation')..."
+          className="flex-1 px-4 py-3 rounded-lg focus:outline-none transition-all duration-300"
+          style={{
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: '2px solid #FFD700',
+            color: '#FFD700',
+            backdropFilter: 'blur(10px)'
+          }}
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 disabled:opacity-50 flex items-center gap-2"
+          style={{
+            background: 'linear-gradient(135deg, #059669, #22c55e)',
+            color: 'white',
+            border: '2px solid #FFD700'
+          }}
+        >
+          {loading ? (
+            <div className="animate-spin w-5 h-5 border-2 border-t-transparent rounded-full"></div>
+          ) : (
+            <><Bot size={18} /> Get AI Tips</>
+          )}
+        </button>
+      </form>
+
+      {/* AI Tips Display */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {loading ? (
+          Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="rounded-lg p-4 animate-pulse" style={{
+              background: 'rgba(255, 215, 0, 0.1)',
+              border: '1px solid rgba(255, 215, 0, 0.3)'
+            }}>
+              <div className="h-4 bg-gray-300 rounded mb-2"></div>
+              <div className="h-3 bg-gray-300 rounded w-3/4"></div>
+            </div>
+          ))
+        ) : (
+          aiTips.map((tip, index) => (
+            <div key={index} className="rounded-lg p-4 transition-all duration-300 hover:scale-105" style={{
+              background: 'rgba(255, 215, 0, 0.1)',
+              border: '1px solid rgba(255, 215, 0, 0.3)',
+              boxShadow: '0 0 10px rgba(255, 215, 0, 0.2)'
+            }}>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{
+                  background: 'linear-gradient(135deg, #FFD700, #FFA500)'
+                }}>
+                  <Bot size={16} className="text-white" />
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: '#E6C55F' }}>
+                  {tip.replace(/^\d+\.\s*/, '').replace(/^[•-]\s*/, '')}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Refresh Button */}
+      <div className="text-center">
+        <button
+          onClick={() => generateAITips(userQuery)}
+          disabled={loading}
+          className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:scale-105 disabled:opacity-50 flex items-center gap-2 mx-auto"
+          style={{
+            background: 'linear-gradient(135deg, #B8860B, #DAA520)',
+            color: 'white',
+            border: '2px solid #FFD700'
+          }}
+        >
+          <RefreshCw size={18} />
+          {loading ? 'Generating...' : 'Get New AI Tips'}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const EcoTips: React.FC = () => {
   const [dailyTips, setDailyTips] = useState<EcoTip[]>([]);
@@ -349,6 +511,25 @@ export const EcoTips: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* AI-Powered Eco Tips Section */}
+      <div className="mt-12 rounded-xl p-6" style={{
+        background: 'rgba(45, 80, 22, 0.3)',
+        border: '2px solid #FFD700',
+        boxShadow: '0 0 30px rgba(255, 215, 0, 0.4)'
+      }}>
+        <div className="text-center mb-6">
+          <h3 className="text-3xl font-bold mb-2" style={{
+            color: '#FFD700',
+            textShadow: '0 0 20px rgba(255, 215, 0, 0.5)'
+          }}>🤖 AI-Powered Eco Tips</h3>
+          <p className="text-lg" style={{ color: '#E6C55F' }}>
+            Get personalized sustainability advice from our AI assistant
+          </p>
+        </div>
+        
+        <AIEcoTips />
       </div>
 
       <div className="mt-8 rounded-xl p-6 text-center" style={{

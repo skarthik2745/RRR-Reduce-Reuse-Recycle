@@ -47,7 +47,70 @@ export const HomeEnergyAudit: React.FC = () => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const calculateEnergyAudit = () => {
+  const generateAIAnalysis = async (auditData: any) => {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert energy auditor. Analyze home energy consumption data and provide specific, actionable recommendations to reduce energy usage and costs. Be practical and focus on the highest impact changes.'
+            },
+            {
+              role: 'user',
+              content: `Analyze this home energy audit data and provide 6 specific recommendations:
+              
+              ENERGY CONSUMPTION ANALYSIS:
+              - House Type: ${formData.houseType}
+              - Family Members: ${formData.familyMembers}
+              - Daily Usage: ${formData.electricityHours} hours
+              - Monthly Consumption: ${auditData.monthlyKwh.toFixed(1)} kWh
+              - Monthly Bill: ₹${auditData.monthlyBill.toFixed(0)}
+              - Efficiency Rating: ${auditData.rating}
+              - Annual CO2 Emissions: ${auditData.yearlyCO2.toFixed(0)} kg
+              
+              APPLIANCE BREAKDOWN:
+              - Air Conditioner: ${auditData.breakdown['Air Conditioner'].toFixed(1)}% of usage
+              - Refrigerator: ${auditData.breakdown['Refrigerator'].toFixed(1)}% of usage
+              - Fans: ${auditData.breakdown['Fans'].toFixed(1)}% of usage
+              - Lighting: ${auditData.breakdown['Lighting'].toFixed(1)}% of usage
+              - Kitchen: ${auditData.breakdown['Kitchen'].toFixed(1)}% of usage
+              - Entertainment: ${auditData.breakdown['Entertainment'].toFixed(1)}% of usage
+              
+              APPLIANCE DETAILS:
+              - LED Bulbs: ${formData.appliances.lighting.led}, Tube Lights: ${formData.appliances.lighting.tube}
+              - Fans: ${formData.appliances.cooling.fans} (${formData.appliances.cooling.fanHours}h/day)
+              - AC: ${formData.appliances.cooling.ac} units (${formData.appliances.cooling.acHours}h/day, ${formData.appliances.cooling.acTon} ton)
+              - TV: ${formData.appliances.entertainment.tv}h/day, Laptop: ${formData.appliances.entertainment.laptop}h/day
+              
+              Provide 6 numbered, specific recommendations with estimated savings in kWh and rupees.`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 600
+        })
+      });
+      
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || '';
+      
+      // Split AI response into lines and filter meaningful content
+      const lines = aiResponse.split('\n').filter(line => line.trim() && (line.includes('.') || line.includes('•') || line.includes('-')));
+      return lines;
+      
+    } catch (error) {
+      console.error('AI Analysis Error:', error);
+      throw error;
+    }
+  };
+
+  const calculateEnergyAudit = async () => {
     const { appliances } = formData;
     
     // Power consumption calculations (watts)
@@ -99,10 +162,21 @@ export const HomeEnergyAudit: React.FC = () => {
       'Others': ((washingPower + coolerPower) / dailyWh) * 100
     };
 
-    setResult({
+    const auditResult = {
       dailyKwh, monthlyKwh, yearlyKwh, monthlyBill, yearlyBill,
-      dailyCO2, monthlyCO2, yearlyCO2, treesNeeded, rating, breakdown
-    });
+      dailyCO2, monthlyCO2, yearlyCO2, treesNeeded, rating, breakdown,
+      aiAnalysis: null
+    };
+
+    setResult(auditResult);
+
+    // Generate AI analysis
+    try {
+      const aiAnalysis = await generateAIAnalysis(auditResult);
+      setResult(prev => ({ ...prev, aiAnalysis }));
+    } catch (error) {
+      setResult(prev => ({ ...prev, aiAnalysis: ['AI analysis failed. Please try again later.'] }));
+    }
   };
 
   const getRatingColor = (rating: string) => {
@@ -127,8 +201,8 @@ export const HomeEnergyAudit: React.FC = () => {
         <p className="text-xl" style={{ color: '#E6C55F' }}>Complete energy analysis with personalized recommendations</p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* LEFT PANEL - INPUT */}
+      <div className="space-y-8">
+        {/* TOP PANEL - INPUT */}
         <div className="space-y-6">
           <h3 className="text-2xl font-semibold" style={{ color: '#FFD700' }}>Enter Your Home Details</h3>
           
@@ -307,7 +381,7 @@ export const HomeEnergyAudit: React.FC = () => {
           </button>
         </div>
 
-        {/* RIGHT PANEL - OUTPUT */}
+        {/* BOTTOM PANEL - OUTPUT */}
         {result && (
           <div className="space-y-6">
             <h3 className="text-2xl font-semibold" style={{ color: '#FFD700' }}>Your Energy & Cost Analysis</h3>
@@ -392,23 +466,26 @@ export const HomeEnergyAudit: React.FC = () => {
               )}
             </div>
 
-            {/* Recommendations */}
+            {/* AI-Powered Recommendations */}
             <div className="rounded-xl p-6" style={{ background: 'rgba(45, 80, 22, 0.2)', border: '1px solid rgba(255, 215, 0, 0.3)' }}>
               <h4 className="font-semibold mb-4 flex items-center" style={{ color: '#FFD700' }}>
                 <Lightbulb className="mr-2" size={20} />
-                💡 Smart Recommendations
+                🤖 AI Energy Analysis
               </h4>
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg" style={{ background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
-                  <p className="text-base" style={{ color: '#E6C55F' }}>Reduce AC usage by 1 hour daily to save ₹{(result.monthlyBill * 0.15).toFixed(0)}/month</p>
+              {result.aiAnalysis ? (
+                <div className="space-y-3">
+                  {result.aiAnalysis.map((analysis: string, index: number) => (
+                    <div key={index} className="p-3 rounded-lg" style={{ background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
+                      <p className="text-base" style={{ color: '#E6C55F' }}>{analysis}</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="p-3 rounded-lg" style={{ background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
-                  <p className="text-base" style={{ color: '#E6C55F' }}>Switch to LED bulbs to save {(formData.appliances.lighting.tube * 31 * 0.03).toFixed(0)} kWh/month</p>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="animate-spin w-6 h-6 border-4 border-t-transparent rounded-full mx-auto mb-2" style={{ borderColor: '#FFD700' }}></div>
+                  <p style={{ color: '#E6C55F' }}>AI is analyzing your energy usage...</p>
                 </div>
-                <div className="p-3 rounded-lg" style={{ background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
-                  <p className="text-base" style={{ color: '#E6C55F' }}>Use washing machine 3 times/week to save 18% energy</p>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Download Report */}

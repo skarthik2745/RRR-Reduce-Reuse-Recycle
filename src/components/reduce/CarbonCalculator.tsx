@@ -87,30 +87,62 @@ export const CarbonCalculator: React.FC = () => {
     return { total, breakdown };
   };
 
-  const generateAISuggestions = async (carbonData: { total: number; breakdown: CarbonData }) => {
+  const generateAISuggestions = async (carbonData: { total: number; breakdown: any }) => {
     setLoading(true);
     try {
-      // Simulate AI API call with the provided API key
-      const suggestions = [
-        `Your carbon footprint is ${carbonData.total.toFixed(2)} kg CO2. Here are personalized recommendations:`,
-        `Switch to LED bulbs to reduce electricity emissions by up to 75%`,
-        `Use public transport or bike to work 2 days a week to cut transport emissions`,
-        `Install a programmable thermostat to optimize energy usage`,
-        `Reduce meat consumption by 1 day per week to lower lifestyle impact`,
-        `Fix water leaks and install low-flow fixtures to reduce water-related emissions`,
-        `Start composting to reduce waste emissions by 30%`,
-        `Consider renewable energy sources like solar panels for your home`
-      ];
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert carbon footprint analyst. Analyze the user\'s carbon emissions data and provide a detailed, structured analysis with specific, actionable recommendations. Format your response as numbered points for easy reading.'
+            },
+            {
+              role: 'user',
+              content: `Please analyze my carbon footprint data and provide detailed recommendations:
+              
+              CARBON FOOTPRINT ANALYSIS:
+              Total Annual Emissions: ${carbonData.total.toFixed(2)} tons CO2
+              
+              DETAILED BREAKDOWN:
+              • Electricity & Appliances: ${(carbonData.breakdown.electricity/1000).toFixed(2)} tons CO2
+              • LPG/Cooking Gas: ${(carbonData.breakdown.lpg/1000).toFixed(2)} tons CO2
+              • Vehicle Fuel: ${(carbonData.breakdown.fuel/1000).toFixed(2)} tons CO2
+              • Public Transport: ${(carbonData.breakdown.publicTransport/1000).toFixed(2)} tons CO2
+              • Waste Generation: ${(carbonData.breakdown.waste/1000).toFixed(2)} tons CO2
+              • Diet/Food: ${(carbonData.breakdown.diet/1000).toFixed(2)} tons CO2
+              • Air Travel: ${(carbonData.breakdown.flights/1000).toFixed(2)} tons CO2
+              
+              Please provide:
+              1. Overall assessment of my carbon footprint
+              2. Top 3 highest emission sources analysis
+              3. 8 specific, actionable recommendations with estimated CO2 reduction potential
+              4. Priority actions I should take first
+              
+              Make recommendations specific to my actual usage patterns and emission levels.`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 800
+        })
+      });
       
-      return suggestions;
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || '';
+      
+      // Split AI response into structured sections
+      const lines = aiResponse.split('\n').filter(line => line.trim());
+      return lines;
+      
     } catch (error) {
-      return [
-        'Switch to renewable energy sources',
-        'Use public transportation more often',
-        'Reduce water consumption',
-        'Implement waste reduction strategies',
-        'Adopt sustainable lifestyle practices'
-      ];
+      console.error('AI Analysis Error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -119,12 +151,19 @@ export const CarbonCalculator: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const carbonResult = calculateCarbon();
-    const suggestions = await generateAISuggestions(carbonResult);
     
-    setResult({
-      ...carbonResult,
-      suggestions
-    });
+    try {
+      const suggestions = await generateAISuggestions(carbonResult);
+      setResult({
+        ...carbonResult,
+        suggestions
+      });
+    } catch (error) {
+      setResult({
+        ...carbonResult,
+        suggestions: ['AI analysis failed. Please try again later.']
+      });
+    }
   };
 
   const getEmissionLevel = (total: number) => {
@@ -586,7 +625,7 @@ export const CarbonCalculator: React.FC = () => {
               </div>
             </div>
 
-            {/* Personalized Recommendations */}
+            {/* AI Analysis Results */}
             <div className="p-6 rounded-2xl" style={{
               background: 'rgba(212, 175, 55, 0.1)',
               border: '2px solid #D4AF37',
@@ -594,31 +633,25 @@ export const CarbonCalculator: React.FC = () => {
             }}>
               <div className="flex items-center mb-6 justify-center">
                 <Lightbulb style={{ color: '#D4AF37' }} size={28} className="mr-3" />
-                <h4 className="text-2xl font-bold" style={{ color: '#D4AF37' }}>Personalized Recommendations</h4>
+                <h4 className="text-2xl font-bold" style={{ color: '#D4AF37' }}>AI Carbon Footprint Analysis</h4>
               </div>
-              <div className="space-y-4">
-                {[
-                  'Switch to LED bulbs and reduce electricity consumption by 20%',
-                  'Use public transport 3 days a week to cut fuel emissions',
-                  'Reduce AC usage by 2 hours daily during peak summer',
-                  'Try plant-based meals 2 days a week to lower diet impact',
-                  'Compost organic waste to reduce landfill emissions',
-                  'Consider solar panels for renewable energy generation',
-                  'Avoid short flights and prefer trains for nearby destinations',
-                  'Use energy-efficient appliances with 5-star ratings'
-                ].map((suggestion, index) => (
-                  <div key={index} className="flex items-start p-3 rounded-lg" style={{
-                    background: 'rgba(0, 0, 0, 0.3)',
-                    border: '1px solid rgba(212, 175, 55, 0.3)'
-                  }}>
-                    <div className="w-3 h-3 rounded-full mt-2 mr-4 flex-shrink-0" style={{
-                      background: 'linear-gradient(135deg, #D4AF37, #FFD700)',
-                      boxShadow: '0 0 10px rgba(212, 175, 55, 0.6)'
-                    }}></div>
-                    <p style={{ color: '#E6C55F' }}>{suggestion}</p>
-                  </div>
-                ))}
-              </div>
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin w-8 h-8 border-4 border-t-transparent rounded-full mx-auto mb-4" style={{ borderColor: '#D4AF37' }}></div>
+                  <p style={{ color: '#E6C55F' }}>AI is analyzing your carbon footprint...</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {result.suggestions.map((line, index) => (
+                    <div key={index} className="p-3 rounded-lg" style={{
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid rgba(212, 175, 55, 0.3)'
+                    }}>
+                      <p style={{ color: '#E6C55F', lineHeight: '1.6' }}>{line}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

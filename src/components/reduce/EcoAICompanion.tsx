@@ -41,11 +41,12 @@ export const EcoAICompanion: React.FC = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputText;
     setInputText('');
     setIsTyping(true);
 
     try {
-      const response = await generateResponse(inputText);
+      const response = await generateResponse(currentInput);
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -53,13 +54,12 @@ export const EcoAICompanion: React.FC = () => {
         isUser: false,
         timestamp: new Date()
       };
-
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('EcoAI error:', error);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: 'API Error: ' + error.message,
+        text: 'Sorry, I encountered an error. Please try again!',
         isUser: false,
         timestamp: new Date()
       };
@@ -69,27 +69,7 @@ export const EcoAICompanion: React.FC = () => {
     }
   };
 
-  const getEcoResponse = (input: string): string => {
-    const lowerInput = input.toLowerCase();
-    
-    if (lowerInput.includes('food waste') || lowerInput.includes('food')) {
-      return 'Great question about food waste! Here are some tips: 1) Plan your meals weekly 2) Store food properly 3) Use leftovers creatively 4) Compost scraps 5) Check expiry dates regularly. Small changes make a big difference! 🍃';
-    }
-    if (lowerInput.includes('recycle') || lowerInput.includes('recycling')) {
-      return 'Recycling is fantastic! Remember the 3 Rs: Reduce, Reuse, Recycle. Sort your waste properly, clean containers before recycling, and check local guidelines. Every item recycled helps our planet! ♻️';
-    }
-    if (lowerInput.includes('energy') || lowerInput.includes('electricity')) {
-      return 'Energy conservation is key! Try these: 1) Switch to LED bulbs 2) Unplug devices when not in use 3) Use natural light during day 4) Set AC to 24-26°C 5) Air dry clothes. Every watt saved counts! ⚡';
-    }
-    if (lowerInput.includes('water')) {
-      return 'Water is precious! Save it by: 1) Taking shorter showers 2) Fixing leaks immediately 3) Using a bucket for car washing 4) Collecting rainwater 5) Turning off taps while brushing. Every drop matters! 💧';
-    }
-    if (lowerInput.includes('plastic')) {
-      return 'Reducing plastic is crucial! Use reusable bags, bottles, and containers. Choose products with minimal packaging. Say no to single-use plastics. Together we can reduce plastic pollution! 🌊';
-    }
-    
-    return 'That\'s a wonderful question about sustainability! I\'m here to help you live more eco-friendly. Try asking me about food waste, recycling, energy saving, water conservation, or any green living tips. Let\'s make our planet healthier together! 🌍';
-  };
+
 
   return (
     <div className="min-h-screen p-12 w-full" style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 30%, #0f3460 70%, #533483 100%)', minHeight: '120vh', width: '100vw', marginLeft: 'calc(-50vw + 50%)', marginRight: 'calc(-50vw + 50%)' }}>
@@ -244,8 +224,11 @@ export const EcoAICompanion: React.FC = () => {
         </div>
       </div>
 
-      <style jsx>{`
-
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
       `}</style>
     </div>
   );
